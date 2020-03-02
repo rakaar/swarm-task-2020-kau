@@ -131,9 +131,90 @@ def level1(botId):
         print(pos[0])
 
 def level2(botId):
-    pass
+    obstaclePose = get_obstacles_list()
+    for i in range(200):
+        grid.append([])
+        for j in range(200):
+            grid[i].append(Node(1,(i,j)))
+    for pt in obstaclePose:
+        for i in range(pt[0][0],pt[2][0]+1):
+            for j in range(pt[0][1],pt[2][1]+1):
+                grid[i][j]=Node(0,(i,j))
+    # moveType = 5
+    
+    
+    # greenZone = get_greenZone_list()
+    # redZone = get_redZone_list()
+    # originalGreenZone = get_original_greenZone_list()
+    
+    # start=grid[botsPose[0][0]][botsPose[0][1]]
+    # print('start is ', botsPose[0][0],botsPose[0][1])
+    # goal=grid[greenZone[0][0][0]][greenZone[0][0][1]]
+    
+    # my_green_zone = greenZone[:]
+    while (len(get_greenZone_list()) != 0):
+        print('Initial number of green sqa ', len(get_greenZone_list()))
+        sleep(1)
+        botsPose = get_botPose_list()
+        current_pos = grid[botsPose[0][0]][botsPose[0][1]]
+        print('l2  s1 ',botsPose[0][0])
+        print('l2 s2 ', botsPose[0][1])
+        print('l2 ',current_pos)
+        min_diagonal_dist = 9999
+        for index, sqaure in enumerate(get_greenZone_list()):
+            sqaure_v_x = sqaure[0][0]
+            sqaure_v_y = sqaure[0][1]
+            diagonal_dist = max(abs(sqaure_v_x - botsPose[0][0]), abs(sqaure_v_y - botsPose[0][1]))
+            if diagonal_dist < min_diagonal_dist:
+                req_ind = index
+                print('req index in green sqs',req_ind)
+                sleep(2)
+                break
+            else:
+                continue
+        goal_2 = grid[get_greenZone_list()[req_ind][0][0]][get_greenZone_list()[req_ind][0][1]]
+        print('l2 goal1  ',get_greenZone_list()[req_ind][0][0])
+        print('l2 goal2 ', get_greenZone_list()[req_ind][0][1])
+        print('l2 goal is ',goal_2)
+        print('dbg donw')
+        
 
+        path = aStar(current_pos, goal_2)
+        for i in range(1,len(path)):
+            send_command(botId, path[i].move)
+            # successful_move, mission_complete = send_command(botId,path[i].move)
+            # pos=get_botPose_list()
+            # if successful_move:
+            #     print("YES")
+            # else:
+            #     print("NO")
+            
+            # pos=get_botPose_list()
+            # print(pos[0])
+        print('One squuare done at ', get_botPose_list()[0])
+        print("Squares left ",len(get_greenZone_list()))
+        sleep(1)
+        
+    
+    print('MISSION status ', is_mission_complete())
+    
+    
 def level3(botId):
+    '''
+    a global list of all green zones to attend
+    while mission_complete is false:
+        thread1 
+            bot0 sees the nearest green sq
+            x = pops it out(deletes out from the list)
+            reaches x using a*
+        thread2
+            bot1 sees the nearest in the same global list
+            y = pops it out
+            reaches y using a*
+
+    Backup plan: If threading fails due to race conditions, asyncio is the next option
+    or may be multiprocessing(lets see)
+    '''
     pass
 
 def level4(botId):
