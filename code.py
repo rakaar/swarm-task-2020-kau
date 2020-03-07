@@ -3,6 +3,7 @@ from api import *
 from time import sleep
 import numpy as np
 from threading import Thread
+import multiprocessing 
 #######    YOUR CODE FROM HERE #######################
 grid =[]
 
@@ -201,6 +202,16 @@ def level3(botId):
 
     Backup plan: If threading fails due to race conditions, asyncio is the next option
     or may be multiprocessing(lets see)
+    Threads failing due to concurrency
+    lets shift to parallelism
+
+    removing with index had issues with threads
+
+    Each process has its own memory space. Thats why when u remove in a process in other process it stays 
+
+    even after keeping arr in server process
+    req index is causing problem
+    it causes problem to elements' position after removed index element of array
     '''
     obstaclePose = get_obstacles_list()
     for i in range(200):
@@ -224,12 +235,19 @@ def level3(botId):
     # current_pos = grid[botsPose[0][0]][botsPose[0][1]]
 
         
-    green_sqs = get_greenZone_list()[:]
-
-    def nearest_sq(botsPose):
+    # green_sqs = get_greenZone_list()[:]
+    def nearest_sq(botsPose, bot_num, green_sqs):
         try:
+            print('bot_num is ', bot_num)
+            try:
+                print('number of sqs left ',len(green_sqs))
+            except Exception as e:
+                print('load in SQSSS', e)
+            
+            if len(green_sqs) is 0:
+                return 'nothing'
             min_diagonal_dist = max(abs(green_sqs[0][0][0]-botsPose[0]), abs(green_sqs[0][0][1]-botsPose[1]))
-            print('min dia dis ', min_diagonal_dist)
+            print('min disat ',min_diagonal_dist, 'botnun ', bot_num)
             req_ind = 0
             for i in range(1, len(green_sqs)):
                 diagonal_dist = max(abs(green_sqs[i][0][0] - botsPose[0]), abs(green_sqs[i][0][1] - botsPose[1]))
@@ -237,55 +255,58 @@ def level3(botId):
                     req_ind = i
                 else:
                     continue
-            print('req_inde ', req_ind)
-            sleep(2)
-            return req_ind
+            target_sq = green_sqs.pop(req_ind)
+            print('index is ', req_ind, 'for bot num ', bot_num)
+            target_obj = grid[target_sq[0][0]][target_sq[0][1]]
+            return target_obj
         except Exception as e:
-            print('e is ', e)
+            print('e is nearest_sq',e)
             
 
-    def manage_bot0():
-        bot0_pose = get_botPose_list()[0]
-        nearest_sq_index = nearest_sq(bot0_pose)
-        try:
-            print('near sq index ', nearest_sq_index)
-            print('lenht of ', len(green_sqs))
-            target_sq = green_sqs.pop(nearest_sq_index)
-        except:
-            print('ni bot 0')
-            
-
-        target_obj = grid[target_sq[0][0]][target_sq[0][1]]
-        current_pos0_obj = grid[bot0_pose[0]][bot0_pose[1]]
-       
-        path = aStar(current_pos0_obj, target_obj)
-        for i in range(1,len(path)):
-            send_command(0, path[i].move)
+    def manage_bot0(green_sqs):
+        while is_mission_complete() is False:
+            bot0_pose = get_botPose_list()[0]
+            current_pos0_obj = grid[bot0_pose[0]][bot0_pose[1]]
+            target_obj = nearest_sq(bot0_pose, 0, green_sqs)
+            if target_obj is 'nothing':
+                print('bot 1 got nothing')
+                return
+            print('nearest 0',target_obj)
+            path = aStar(current_pos0_obj, target_obj)
+            for i in range(1,len(path)):
+                send_command(0, path[i].move)
     
     
-    def manage_bot1():
-        bot1_pose = get_botPose_list()[1]
-        nearest_sq_index = nearest_sq(bot1_pose)
-        try:
-            print('near sq index ', nearest_sq_index)
-            print('lenht of ', len(green_sqs))
-            target_sq = green_sqs.pop(nearest_sq_index)
-        except:
-            print('ni bot 1')
+    def manage_bot1(green_sqs):
+        while is_mission_complete() is False:    
+            bot1_pose = get_botPose_list()[1]
+            current_pos1_obj = grid[bot1_pose[0]][bot1_pose[1]]
+            target_obj = nearest_sq(bot1_pose, 1, green_sqs)
+            if target_obj is 'nothing':
+                print('bot 1 got nothing')
+                return
+            print('nearest 1 ', target_obj)
+            path = aStar(current_pos1_obj, target_obj)
+            for i in range(1,len(path)):
+                send_command(1, path[i].move)
+    
+    with multiprocessing.Manager() as manager:
+        greens = manager.list(get_original_greenZone_list()[:])
+        print('in derver ', len(greens))
 
-        target_obj = grid[target_sq[0][0]][target_sq[0][1]]
-        current_pos1_obj = grid[bot1_pose[0]][bot1_pose[1]]
+        p1 = multiprocessing.Process(target = manage_bot0, args=(greens,))
+        p2 = multiprocessing.Process(target = manage_bot1, args=(greens,))
 
-        path = aStar(current_pos1_obj, target_obj)
-        for i in range(1,len(path)):
-            send_command(1, path[i].move)
+        p1.start()
+        p2.start()
+        
+        p1.join()
+        p2.join()
+
+        
     
 
-    while is_mission_complete() is False:
-        Thread(target=manage_bot0).start()
-        Thread(target=manage_bot1).start()
-    print('mission done')
-
+ 
     
 def level4(botId):
     pass
