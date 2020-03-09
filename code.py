@@ -212,6 +212,18 @@ def level3(botId):
     even after keeping arr in server process
     req index is causing problem
     it causes problem to elements' position after removed index element of array
+    shift to array of dicts to keep track of items lets keep a key name visited which is false or true
+
+    In array of dicts, with a visited key value as flag, issue is while one is being in the process and hasnt been marked True, 
+    other one also finds out the same thing. Hence both get the same sq
+    Prob: Both getting same sqs when near
+
+    UNIDENTIFIED ISSUE: why is the same bot going to the same target twice in the end
+    #TODO IMPROVEMENTS
+    check the distance from other bot too
+    keep that in one bot only who keeps track of other,
+    its like one of the guy is taking or giving away responsibility
+    REASON: both catch up nearest ones and also keep calculating on the same sq when closer
     '''
     obstaclePose = get_obstacles_list()
     for i in range(200):
@@ -223,40 +235,42 @@ def level3(botId):
             for j in range(pt[0][1],pt[2][1]+1):
                 grid[i][j]=Node(0,(i,j))
     
-    
-    # botsPose0 = get_botPose_list()[0]
-    # botsPose1 = get_botPose_list()[1]
 
-    # current_pos0 = grid[botsPose0[0][0]][botsPose0[0][1]]
-    # current_pos1 = grid[botsPose1[0][0]][botsPose1[0][1]]
-
-
-
-    # current_pos = grid[botsPose[0][0]][botsPose[0][1]]
-
-        
-    # green_sqs = get_greenZone_list()[:]
     def nearest_sq(botsPose, bot_num, green_sqs):
         try:
             print('bot_num is ', bot_num)
-            try:
-                print('number of sqs left ',len(green_sqs))
-            except Exception as e:
-                print('load in SQSSS', e)
-            
-            if len(green_sqs) is 0:
-                return 'nothing'
-            min_diagonal_dist = max(abs(green_sqs[0][0][0]-botsPose[0]), abs(green_sqs[0][0][1]-botsPose[1]))
+            unvisisted_green_sqs = [sq for sq in green_sqs if sq['visited'] is False]
+            print('num of sqs left ', len(unvisisted_green_sqs))
+            if len(unvisisted_green_sqs) is 0:
+                print('status of mission is ', is_mission_complete())
+                return
+            first_sq_in_unvisited_dict = unvisisted_green_sqs[0]
+            first_sq_unv_key = list(first_sq_in_unvisited_dict.keys())[0]
+            first_sq_unv_verts = list(first_sq_in_unvisited_dict.values())[0] 
+            min_diagonal_dist = max(abs(botsPose[0] - first_sq_unv_verts[0][0]), abs(botsPose[1] - first_sq_unv_verts[0][1]))
             print('min disat ',min_diagonal_dist, 'botnun ', bot_num)
-            req_ind = 0
-            for i in range(1, len(green_sqs)):
-                diagonal_dist = max(abs(green_sqs[i][0][0] - botsPose[0]), abs(green_sqs[i][0][1] - botsPose[1]))
+            req_key = first_sq_unv_key
+            
+            for index, s in enumerate(unvisisted_green_sqs):
+                if index is 0:
+                    continue
+                key_of_sq= list(s.keys())[0]
+                current_sq = list(s.values())[0]
+                diagonal_dist = max(abs(current_sq[0][0] - botsPose[0]), abs(current_sq[0][1] - botsPose[1]))
                 if diagonal_dist < min_diagonal_dist:
-                    req_ind = i
+                    req_key = key_of_sq
                 else:
                     continue
-            target_sq = green_sqs.pop(req_ind)
-            print('index is ', req_ind, 'for bot num ', bot_num)
+            print('index is ', req_key, 'for bot num ', bot_num)
+            
+            # get the target square before that mark its visited as True
+            target_sq_dict = greens[req_key]
+            target_sq_dict['visited'] = True
+            greens[req_key] = target_sq_dict
+            print('greens is ',greens)
+
+            target_sq = target_sq_dict[req_key] 
+            
             target_obj = grid[target_sq[0][0]][target_sq[0][1]]
             return target_obj
         except Exception as e:
@@ -268,9 +282,6 @@ def level3(botId):
             bot0_pose = get_botPose_list()[0]
             current_pos0_obj = grid[bot0_pose[0]][bot0_pose[1]]
             target_obj = nearest_sq(bot0_pose, 0, green_sqs)
-            if target_obj is 'nothing':
-                print('bot 1 got nothing')
-                return
             print('nearest 0',target_obj)
             path = aStar(current_pos0_obj, target_obj)
             for i in range(1,len(path)):
@@ -282,18 +293,23 @@ def level3(botId):
             bot1_pose = get_botPose_list()[1]
             current_pos1_obj = grid[bot1_pose[0]][bot1_pose[1]]
             target_obj = nearest_sq(bot1_pose, 1, green_sqs)
-            if target_obj is 'nothing':
-                print('bot 1 got nothing')
-                return
             print('nearest 1 ', target_obj)
             path = aStar(current_pos1_obj, target_obj)
             for i in range(1,len(path)):
                 send_command(1, path[i].move)
     
     with multiprocessing.Manager() as manager:
-        greens = manager.list(get_original_greenZone_list()[:])
-        print('in derver ', len(greens))
-
+        greens_arr = get_original_greenZone_list()[:]
+        greens_dict_arr = []
+        for index, sq in enumerate(greens_arr):
+            sq_dict = {}
+            sq_dict[index] = sq
+            sq_dict['visited'] = False
+            greens_dict_arr.append(sq_dict)
+        
+           
+        greens = manager.list(greens_dict_arr)
+        
         p1 = multiprocessing.Process(target = manage_bot0, args=(greens,))
         p2 = multiprocessing.Process(target = manage_bot1, args=(greens,))
 
