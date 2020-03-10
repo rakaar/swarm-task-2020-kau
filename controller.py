@@ -28,13 +28,13 @@ elif level == 2:
     os.system("python3 code.py 0")
     print("The final score is: " + str(get_score()))
 elif level == 3:
-    threads = []
-    for i in range(2):
-        thread = myThread(i)
-        threads.append(thread)
-        thread.start()
-    for t in threads:
-        t.join()
+    # threads = []
+    # for i in range(2):
+    #     thread = myThread(i)
+    #     threads.append(thread)
+    #     thread.start()
+    # for t in threads:
+    #     t.join()
     os.system("python3 code.py")
     print("The final score is: "+str(get_score()))
 elif level == 4:

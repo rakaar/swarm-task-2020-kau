@@ -188,7 +188,7 @@ def level2(botId):
     print('MISSION status ', is_mission_complete())
     
     
-def level3(botId):
+def level3():
     '''
     a global list of all green zones to attend
     while mission_complete is false:
@@ -361,14 +361,24 @@ def level6(botId):
 #######    DON'T EDIT ANYTHING BELOW  #######################
 
 if  __name__=="__main__":
-    botId = int(sys.argv[1])
+    print('sys.sys.argv[1] ', len(sys.argv))
+    if len(sys.argv) is 1:
+        pass
+    else:
+        botId = sys.argv[1]
+    
+    # if sys.argv[0] is  'code.py': # if no argument is passed
+    #     pass
+    # else:
+    #     botId = sys.argv[1]
+        
     level = get_level()
     if level == 1:
         level1(botId)
     elif level == 2:
         level2(botId)
     elif level == 3:
-        level3(botId)
+        level3()
     elif level == 4:
         level4(botId)
     elif level == 5:
