@@ -4,6 +4,7 @@ from time import sleep
 import numpy as np
 from threading import Thread
 import multiprocessing 
+import os
 #######    YOUR CODE FROM HERE #######################
 grid =[]
 
@@ -216,108 +217,131 @@ def level3(botId):
 
     In array of dicts, with a visited key value as flag, issue is while one is being in the process and hasnt been marked True, 
     other one also finds out the same thing. Hence both get the same sq
-    Prob: Both getting same sqs when near
+    Problem: Both getting same sqs when near
+    Solution: using multiprocessing.Queue to communication
+    bot1 sends the found sq to bot0, bot0 checks if its req_key matches with key bot1 sent, if matches then it calls manage_bot0 again
+    
+    ISSUE: why is the same bot going to the same target twice in the end
+    As per code in controller.py 
+    2 different programmes are running on different threads python3 code.py 0, python3 code.py 1
+    hence currently 4 different process are running bot0 and bot1 in thread1, and bot0 and bot1 in thread2
+    hence but i want parallelism not concurrency
 
-    UNIDENTIFIED ISSUE: why is the same bot going to the same target twice in the end
-    #TODO IMPROVEMENTS
-    check the distance from other bot too
-    keep that in one bot only who keeps track of other,
-    its like one of the guy is taking or giving away responsibility
-    REASON: both catch up nearest ones and also keep calculating on the same sq when closer
     '''
-    obstaclePose = get_obstacles_list()
-    for i in range(200):
-        grid.append([])
-        for j in range(200):
-            grid[i].append(Node(1,(i,j)))
-    for pt in obstaclePose:
-        for i in range(pt[0][0],pt[2][0]+1):
-            for j in range(pt[0][1],pt[2][1]+1):
-                grid[i][j]=Node(0,(i,j))
-    
+    if __name__ == '__main__':
+        print('MAIN pID ', os.getpid())
+        obstaclePose = get_obstacles_list()
+        for i in range(200):
+            grid.append([])
+            for j in range(200):
+                grid[i].append(Node(1,(i,j)))
+        for pt in obstaclePose:
+            for i in range(pt[0][0],pt[2][0]+1):
+                for j in range(pt[0][1],pt[2][1]+1):
+                    grid[i][j]=Node(0,(i,j))
+        
 
-    def nearest_sq(botsPose, bot_num, green_sqs):
-        try:
-            print('bot_num is ', bot_num)
-            unvisisted_green_sqs = [sq for sq in green_sqs if sq['visited'] is False]
-            print('num of sqs left ', len(unvisisted_green_sqs))
-            if len(unvisisted_green_sqs) is 0:
-                print('status of mission is ', is_mission_complete())
-                return
-            first_sq_in_unvisited_dict = unvisisted_green_sqs[0]
-            first_sq_unv_key = list(first_sq_in_unvisited_dict.keys())[0]
-            first_sq_unv_verts = list(first_sq_in_unvisited_dict.values())[0] 
-            min_diagonal_dist = max(abs(botsPose[0] - first_sq_unv_verts[0][0]), abs(botsPose[1] - first_sq_unv_verts[0][1]))
-            print('min disat ',min_diagonal_dist, 'botnun ', bot_num)
-            req_key = first_sq_unv_key
-            
-            for index, s in enumerate(unvisisted_green_sqs):
-                if index is 0:
-                    continue
-                key_of_sq= list(s.keys())[0]
-                current_sq = list(s.values())[0]
-                diagonal_dist = max(abs(current_sq[0][0] - botsPose[0]), abs(current_sq[0][1] - botsPose[1]))
-                if diagonal_dist < min_diagonal_dist:
-                    req_key = key_of_sq
+        def nearest_sq(botsPose, bot_num, green_sqs, que):
+            try:
+                print('bot_num is ', bot_num)
+                unvisisted_green_sqs = [sq for sq in green_sqs if sq['visited'] is False]
+                
+                print('num of sqs left ', len(unvisisted_green_sqs))
+                if len(unvisisted_green_sqs) is 0:
+                    print('status of mission is ', is_mission_complete()) # Has  to be true
+                    # what happens if in other process a bot is still moving
+                    # stop execution of current thread for sometime so as to let the other bot reach its target
+                    sleep(5)
+                    sys.exit()
+                    # Ideally it should close because the mission is complete
+                    
+                first_sq_in_unvisited_dict = unvisisted_green_sqs[0]
+                first_sq_unv_key = list(first_sq_in_unvisited_dict.keys())[0]
+                first_sq_unv_verts = list(first_sq_in_unvisited_dict.values())[0] 
+                min_diagonal_dist = max(abs(botsPose[0] - first_sq_unv_verts[0][0]), abs(botsPose[1] - first_sq_unv_verts[0][1]))
+                print('min disat ',min_diagonal_dist, 'botnun ', bot_num)
+                req_key = first_sq_unv_key
+                
+                for index, s in enumerate(unvisisted_green_sqs):
+                    if index is 0:
+                        continue
+                    key_of_sq= list(s.keys())[0]
+                    current_sq = list(s.values())[0]
+                    diagonal_dist = max(abs(current_sq[0][0] - botsPose[0]), abs(current_sq[0][1] - botsPose[1]))
+                    if diagonal_dist < min_diagonal_dist:
+                        req_key = key_of_sq
+                    else:
+                        continue
+                print('index is ', req_key, 'for bot num ', bot_num, 'PROCESS IS ', os.getpid())
+                
+                # get the target square before that mark its visited as True
+                target_sq_dict = greens[req_key]
+                target_sq_dict['visited'] = True
+                greens[req_key] = target_sq_dict
+                print('greens is ',greens)
+
+                target_sq = target_sq_dict[req_key] 
+                
+                target_obj = grid[target_sq[0][0]][target_sq[0][1]]
+                
+                if bot_num is 1:
+                    que.put(req_key)    
+                
+                return target_obj, req_key
+            except Exception as e:
+                print('e is nearest_sq',e)
+                
+
+        def manage_bot0(green_sqs,que):
+            while is_mission_complete() is False:
+                bot0_pose = get_botPose_list()[0]
+                current_pos0_obj = grid[bot0_pose[0]][bot0_pose[1]]
+                target_obj, req_key = nearest_sq(bot0_pose, 0, green_sqs,que)
+                if req_key is que.get():
+                    print('BOTH are at same', req_key)
+                    manage_bot0(green_sqs, que)
                 else:
-                    continue
-            print('index is ', req_key, 'for bot num ', bot_num)
-            
-            # get the target square before that mark its visited as True
-            target_sq_dict = greens[req_key]
-            target_sq_dict['visited'] = True
-            greens[req_key] = target_sq_dict
-            print('greens is ',greens)
-
-            target_sq = target_sq_dict[req_key] 
-            
-            target_obj = grid[target_sq[0][0]][target_sq[0][1]]
-            return target_obj
-        except Exception as e:
-            print('e is nearest_sq',e)
-            
-
-    def manage_bot0(green_sqs):
-        while is_mission_complete() is False:
-            bot0_pose = get_botPose_list()[0]
-            current_pos0_obj = grid[bot0_pose[0]][bot0_pose[1]]
-            target_obj = nearest_sq(bot0_pose, 0, green_sqs)
-            print('nearest 0',target_obj)
-            path = aStar(current_pos0_obj, target_obj)
-            for i in range(1,len(path)):
-                send_command(0, path[i].move)
-    
-    
-    def manage_bot1(green_sqs):
-        while is_mission_complete() is False:    
-            bot1_pose = get_botPose_list()[1]
-            current_pos1_obj = grid[bot1_pose[0]][bot1_pose[1]]
-            target_obj = nearest_sq(bot1_pose, 1, green_sqs)
-            print('nearest 1 ', target_obj)
-            path = aStar(current_pos1_obj, target_obj)
-            for i in range(1,len(path)):
-                send_command(1, path[i].move)
-    
-    with multiprocessing.Manager() as manager:
-        greens_arr = get_original_greenZone_list()[:]
-        greens_dict_arr = []
-        for index, sq in enumerate(greens_arr):
-            sq_dict = {}
-            sq_dict[index] = sq
-            sq_dict['visited'] = False
-            greens_dict_arr.append(sq_dict)
+                    print('nearest 0',target_obj)
+                    path = aStar(current_pos0_obj, target_obj)
+                    for i in range(1,len(path)):
+                        send_command(0, path[i].move)
         
-           
-        greens = manager.list(greens_dict_arr)
         
-        p1 = multiprocessing.Process(target = manage_bot0, args=(greens,))
-        p2 = multiprocessing.Process(target = manage_bot1, args=(greens,))
+        def manage_bot1(green_sqs,que):
+            while is_mission_complete() is False:    
+                bot1_pose = get_botPose_list()[1]
+                current_pos1_obj = grid[bot1_pose[0]][bot1_pose[1]]
+                target_obj, _ = nearest_sq(bot1_pose, 1, green_sqs,que)
+                print('nearest 1 ', target_obj)
+                path = aStar(current_pos1_obj, target_obj)
+                for i in range(1,len(path)):
+                    send_command(1, path[i].move)
+        
+        with multiprocessing.Manager() as manager:
+            greens_arr = get_original_greenZone_list()[:]
+            greens_dict_arr = []
+            for index, sq in enumerate(greens_arr):
+                sq_dict = {}
+                sq_dict[index] = sq
+                sq_dict['visited'] = False
+                greens_dict_arr.append(sq_dict)
+            
+            
+            greens = manager.list(greens_dict_arr)
+            que = multiprocessing.Queue()
 
-        p1.start()
-        p2.start()
-        
-        p1.join()
-        p2.join()
+            p1 = multiprocessing.Process(target = manage_bot0, args=(greens,que))
+            p2 = multiprocessing.Process(target = manage_bot1, args=(greens,que))
+            
+
+            p1.start()
+            p2.start()
+
+            print('p1.pid ', p1.pid)
+            print('p2.pid ', p2.pid)
+            
+            p1.join()
+            p2.join()
 
         
     

@@ -35,6 +35,7 @@ elif level == 3:
         thread.start()
     for t in threads:
         t.join()
+    os.system("python3 code.py")
     print("The final score is: "+str(get_score()))
 elif level == 4:
     threads = []
