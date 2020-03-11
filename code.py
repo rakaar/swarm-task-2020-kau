@@ -348,8 +348,115 @@ def level3():
 
  
     
-def level4(botId):
-    pass
+def level4():
+    ''''
+    create different num of proces based on input
+    assign each process same func and botId
+    start all of them one by one
+    end all of them
+
+    Write a func manage bot generalized
+    same nearest sq function
+    same dicts approach
+
+    join() is needed for daemon process
+    though the main program is completed, .join() is called so as to wait for the process to complete
+
+    non daemonic have join() implicity mentioned
+    '''
+    print('number of bots ',get_numbots())
+    print('MAIN pID ', os.getpid())
+    obstaclePose = get_obstacles_list()
+    for i in range(200):
+        grid.append([])
+        for j in range(200):
+            grid[i].append(Node(1,(i,j)))
+    for pt in obstaclePose:
+        for i in range(pt[0][0],pt[2][0]+1):
+            for j in range(pt[0][1],pt[2][1]+1):
+                grid[i][j]=Node(0,(i,j))
+    def nearest_sq(botsPose, bot_num, green_sqs):
+        try:
+            print('bot_num is ', bot_num)
+            unvisisted_green_sqs = [sq for sq in green_sqs if sq['visited'] is False]
+            
+            print('num of sqs left ', len(unvisisted_green_sqs))
+            if len(unvisisted_green_sqs) is 0:
+                print('status of mission is ', is_mission_complete()) # Has  to be true
+                # what happens if in other process a bot is still moving
+                # stop execution of current thread for sometime so as to let the other bot reach its target
+                sleep(5)
+                sys.exit()
+                # Ideally it should close because the mission is complete
+                
+            first_sq_in_unvisited_dict = unvisisted_green_sqs[0]
+            first_sq_unv_key = list(first_sq_in_unvisited_dict.keys())[0]
+            first_sq_unv_verts = list(first_sq_in_unvisited_dict.values())[0] 
+            min_diagonal_dist = max(abs(botsPose[0] - first_sq_unv_verts[0][0]), abs(botsPose[1] - first_sq_unv_verts[0][1]))
+            print('min disat ',min_diagonal_dist, 'botnun ', bot_num)
+            req_key = first_sq_unv_key
+            
+            for index, s in enumerate(unvisisted_green_sqs):
+                if index is 0:
+                    continue
+                key_of_sq= list(s.keys())[0]
+                current_sq = list(s.values())[0]
+                diagonal_dist = max(abs(current_sq[0][0] - botsPose[0]), abs(current_sq[0][1] - botsPose[1]))
+                if diagonal_dist < min_diagonal_dist:
+                    req_key = key_of_sq
+                else:
+                    continue
+            print('index is ', req_key, 'for bot num ', bot_num, 'PROCESS IS ', os.getpid())
+            
+            # get the target square before that mark its visited as True
+            target_sq_dict = greens[req_key]
+            target_sq_dict['visited'] = True
+            greens[req_key] = target_sq_dict
+            print('greens is ',greens)
+
+            target_sq = target_sq_dict[req_key] 
+            
+            target_obj = grid[target_sq[0][0]][target_sq[0][1]]
+            return target_obj, req_key
+        
+        except Exception as e:
+            print('e is nearest_sq',e)
+    
+    
+    def manage_bot(bot_id, greens):
+        while is_mission_complete() is False:
+            print('greens is ', greens)  
+            bot_pose = get_botPose_list()[bot_id]
+            current_pos_obj = grid[bot_pose[0]][bot_pose[1]]
+            target_obj, _ = nearest_sq(bot_pose, bot_id, greens)
+            print('nearest one for  ', bot_id, ' is ', target_obj)
+            path = aStar(current_pos_obj, target_obj)
+            for i in range(1,len(path)):
+                send_command(bot_id, path[i].move)
+    
+    
+    num_of_bots = get_numbots()
+    processes = []
+    greens_arr = get_original_greenZone_list()[:]
+    greens_dict_arr = []
+    for index, sq in enumerate(greens_arr):
+        sq_dict = {}
+        sq_dict[index] = sq
+        sq_dict['visited'] = False
+        greens_dict_arr.append(sq_dict)
+    print('afer looping ', greens_dict_arr)
+    
+    with multiprocessing.Manager() as manager:
+        greens = manager.list(greens_dict_arr)
+        print('greens is ', greens)
+        for bot_id in range(0, num_of_bots):
+            processes.append(multiprocessing.Process(target=manage_bot, args = (bot_id, greens)))
+            processes[bot_id].start()
+
+        for p in processes:
+            p.join()
+
+
 
 def level5(botId):
     pass
@@ -380,7 +487,7 @@ if  __name__=="__main__":
     elif level == 3:
         level3()
     elif level == 4:
-        level4(botId)
+        level4()
     elif level == 5:
         level5(botId)
     elif level == 6:
